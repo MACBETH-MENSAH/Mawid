@@ -103,6 +103,10 @@ class _HomeScreenState extends State<HomeScreen> {
     final profile = context.watch<AuthProvider>().profile;
     final refreshVersion = context.watch<DataRefreshProvider>().version;
     final firstName = (profile?.fullName ?? '').split(' ').first;
+    final hour = DateTime.now().hour;
+    final greeting = hour < 12
+        ? 'GOOD MORNING'
+        : (hour < 17 ? 'GOOD AFTERNOON' : 'GOOD EVENING');
     _maybeLoad(profile?.id, refreshVersion);
 
     return Scaffold(
@@ -112,9 +116,9 @@ class _HomeScreenState extends State<HomeScreen> {
         child: ListView(
           padding: const EdgeInsets.all(20),
           children: [
-            const Text(
-              'GOOD MORNING',
-              style: TextStyle(
+            Text(
+              greeting,
+              style: const TextStyle(
                 color: AppColors.textSecondary,
                 fontSize: 12,
                 fontWeight: FontWeight.bold,

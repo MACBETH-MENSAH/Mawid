@@ -106,6 +106,26 @@ class SupabaseService {
     return '$publicUrl?v=${DateTime.now().millisecondsSinceEpoch}';
   }
 
+  /// Uploads an event cover image to the 'event-covers' bucket, scoped to
+  /// the organizer's own folder (event-covers/{userId}/{timestamp}.ext).
+  /// Unlike the avatar (one fixed filename per user, needs cache-busting
+  /// on overwrite), each event cover gets its own unique filename since
+  /// one organizer can have many events each needing a different cover —
+  /// so no cache-busting query param is needed here, the path itself is
+  /// already unique per upload.
+  Future<String> uploadEventCover(Uint8List bytes, {required String fileExt}) async {
+    final user = currentUser;
+    if (user == null) throw Exception('Not logged in');
+
+    final path = '${user.id}/${DateTime.now().millisecondsSinceEpoch}.$fileExt';
+    await client.storage.from('event-covers').uploadBinary(
+      path,
+      bytes,
+      fileOptions: const FileOptions(upsert: false),
+    );
+    return client.storage.from('event-covers').getPublicUrl(path);
+  }
+
   /// Full account deletion — this must go through a server-side Edge
   /// Function (see supabase/functions/delete-account) rather than
   /// anything the client does directly, because actually removing a

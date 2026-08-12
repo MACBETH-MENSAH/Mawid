@@ -30,8 +30,28 @@ dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^4.0.0
+  flutter_native_splash: ^2.4.1
 
 flutter:
   uses-material-design: true
   assets:
     - assets/images/
+
+# Config for flutter_native_splash — generates the actual native
+# (pre-Flutter-boot) splash screen for Android/iOS, using the real
+# exported logo PNG, not a hand-coded shape. This is separate from and
+# earlier than the in-app splash in lib/main.dart: this is what shows
+# while the OS is still launching the app, before Flutter's engine has
+# even started drawing anything.
+#
+# To generate/update it after changing this config or the image, run:
+#   flutter pub get
+#   dart run flutter_native_splash:create
+# (This edits native Android/iOS files directly — must be run locally,
+# not something that can be pre-baked into the zipped source files.)
+flutter_native_splash:
+  color: "#05070D"
+  image: assets/images/mawid_mark.png
+  android_12:
+    color: "#05070D"
+    image: assets/images/mawid_mark.png

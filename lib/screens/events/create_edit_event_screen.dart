@@ -1,4 +1,6 @@
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -6,6 +8,7 @@ import '../../models/ticket_type.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/data_refresh_provider.dart';
 import '../../services/event_service.dart';
+import '../../services/supabase_service.dart';
 import '../../services/ticket_service.dart';
 import '../../theme/app_colors.dart';
 
@@ -62,7 +65,13 @@ class _CreateEditEventScreenState extends State<CreateEditEventScreen> {
   final _titleController = TextEditingController();
   final _descriptionController = TextEditingController();
   final _venueController = TextEditingController();
-  final _coverImageUrlController = TextEditingController();
+
+  // Cover image: either a freshly picked image (not yet uploaded) or,
+  // when editing, the event's existing cover URL. _newCoverBytes takes
+  // priority for preview and for what gets uploaded on save.
+  Uint8List? _newCoverBytes;
+  String? _newCoverExt;
+  String? _existingCoverUrl;
 
   String? _category;
   DateTime? _selectedDate;
@@ -102,7 +111,7 @@ class _CreateEditEventScreenState extends State<CreateEditEventScreen> {
       _titleController.text = event.title;
       _descriptionController.text = event.description ?? '';
       _venueController.text = event.venue ?? '';
-      _coverImageUrlController.text = event.coverImageUrl ?? '';
+      _existingCoverUrl = event.coverImageUrl;
       _category = _categories.contains(event.category) ? event.category : null;
       _selectedDate = event.startDate;
       _selectedTime = TimeOfDay.fromDateTime(event.startDate);
@@ -130,11 +139,29 @@ class _CreateEditEventScreenState extends State<CreateEditEventScreen> {
     _titleController.dispose();
     _descriptionController.dispose();
     _venueController.dispose();
-    _coverImageUrlController.dispose();
     for (final d in _ticketDrafts) {
       d.dispose();
     }
     super.dispose();
+  }
+
+  Future<void> _pickCoverImage() async {
+    final picker = ImagePicker();
+    final picked = await picker.pickImage(
+      source: ImageSource.gallery,
+      maxWidth: 1600,
+      imageQuality: 85,
+    );
+    if (picked == null) return;
+
+    final bytes = await picked.readAsBytes();
+    final ext = picked.name.contains('.')
+        ? picked.name.split('.').last.toLowerCase()
+        : 'jpg';
+    setState(() {
+      _newCoverBytes = bytes;
+      _newCoverExt = ext;
+    });
   }
 
   Future<void> _pickDate() async {
@@ -199,15 +226,26 @@ class _CreateEditEventScreenState extends State<CreateEditEventScreen> {
 
       final client = Supabase.instance.client;
 
+      // If a new image was picked, upload it now and use the resulting
+      // URL. If editing and nothing new was picked, keep whatever cover
+      // was already there. If creating fresh with no image picked,
+      // cover stays null — EventCard/EventDetails already render a
+      // placeholder gracefully for events with no cover.
+      String? coverUrl = _existingCoverUrl;
+      if (_newCoverBytes != null) {
+        coverUrl = await SupabaseService.instance.uploadEventCover(
+          _newCoverBytes!,
+          fileExt: _newCoverExt ?? 'jpg',
+        );
+      }
+
       final eventPayload = {
         'organizer_id': userId,
         'title': _titleController.text.trim(),
         'description': _descriptionController.text.trim(),
         'category': _category,
         'venue': _venueController.text.trim(),
-        'cover_image_url': _coverImageUrlController.text.trim().isEmpty
-            ? null
-            : _coverImageUrlController.text.trim(),
+        'cover_image_url': coverUrl,
         'start_date': startDate.toIso8601String(),
         'status': targetStatus,
       };
@@ -344,13 +382,55 @@ class _CreateEditEventScreenState extends State<CreateEditEventScreen> {
         child: ListView(
           padding: const EdgeInsets.all(20),
           children: [
-            TextFormField(
-              controller: _coverImageUrlController,
-              decoration: const InputDecoration(
-                labelText: 'Cover image URL (optional)',
-                hintText: 'https://...',
+            GestureDetector(
+              onTap: _pickCoverImage,
+              child: Container(
+                width: double.infinity,
+                height: 180,
+                clipBehavior: Clip.antiAlias,
+                decoration: BoxDecoration(
+                  color: AppColors.surface,
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(
+                    color: AppColors.border,
+                    style: BorderStyle.solid,
+                  ),
+                ),
+                child: _newCoverBytes != null
+                    ? Image.memory(_newCoverBytes!, fit: BoxFit.cover, width: double.infinity)
+                    : (_existingCoverUrl != null
+                    ? Image.network(_existingCoverUrl!,
+                    fit: BoxFit.cover, width: double.infinity)
+                    : const Center(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.add_photo_alternate_outlined,
+                          color: AppColors.textSecondary, size: 32),
+                      SizedBox(height: 8),
+                      Text('Tap to add photo',
+                          style: TextStyle(
+                              color: AppColors.textSecondary,
+                              fontWeight: FontWeight.w600)),
+                      SizedBox(height: 2),
+                      Text('High-res JPG or PNG',
+                          style: TextStyle(
+                              color: AppColors.textMuted, fontSize: 11)),
+                    ],
+                  ),
+                )),
               ),
             ),
+            if (_newCoverBytes != null || _existingCoverUrl != null) ...[
+              const SizedBox(height: 8),
+              Center(
+                child: TextButton.icon(
+                  icon: const Icon(Icons.edit_outlined, size: 16),
+                  label: const Text('Change photo'),
+                  onPressed: _pickCoverImage,
+                ),
+              ),
+            ],
             const SizedBox(height: 20),
             const Text('Event Details',
                 style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),

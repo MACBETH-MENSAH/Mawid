@@ -73,6 +73,23 @@ class AuthGate extends StatefulWidget {
 class _AuthGateState extends State<AuthGate> {
   AuthStatus? _previousStatus;
 
+  // The real bug this fixes: AuthProvider resolves its status
+  // SYNCHRONOUSLY in its own constructor (reading the locally-persisted
+  // Supabase session), so `status` is essentially never actually
+  // AuthStatus.unknown by the time this widget's build() first runs —
+  // the splash had zero chance to ever be seen, regardless of how it was
+  // built. This timer guarantees a minimum visible duration for the
+  // splash no matter how fast auth resolves underneath it.
+  bool _minSplashElapsed = false;
+
+  @override
+  void initState() {
+    super.initState();
+    Future.delayed(const Duration(milliseconds: 1200), () {
+      if (mounted) setState(() => _minSplashElapsed = true);
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     final auth = context.watch<AuthProvider>();
@@ -85,9 +102,13 @@ class _AuthGateState extends State<AuthGate> {
     }
     _previousStatus = auth.status;
 
+    if (!_minSplashElapsed) {
+      return const _SplashScreen();
+    }
+
     switch (auth.status) {
       case AuthStatus.unknown:
-        return const _SplashPlaceholder();
+        return const _SplashScreen();
       case AuthStatus.unauthenticated:
         return const LoginScreen();
       case AuthStatus.authenticated:
@@ -96,11 +117,18 @@ class _AuthGateState extends State<AuthGate> {
   }
 }
 
-class _SplashPlaceholder extends StatelessWidget {
-  const _SplashPlaceholder();
+class _SplashScreen extends StatelessWidget {
+  const _SplashScreen();
 
   @override
   Widget build(BuildContext context) {
+    // MawidLogoWordmark (see widgets/mawid_logo.dart) renders
+    // Image.asset('assets/images/mawid_mark.png') — the actual exported
+    // PNG, not a hand-drawn/coded shape. This IS the app's real splash
+    // screen now (see _minSplashElapsed above for why it wasn't visible
+    // before). A true native splash — visible before Flutter's engine
+    // even finishes booting, one step earlier than this — is set up via
+    // flutter_native_splash; see SETUP.md.
     return const Scaffold(
       backgroundColor: AppColors.background,
       body: Center(child: MawidLogoWordmark()),
