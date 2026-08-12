@@ -268,6 +268,59 @@ class _CreateEditEventScreenState extends State<CreateEditEventScreen> {
     }
   }
 
+  /// Cancels the event — distinct from Delete. Cancelling keeps the event
+  /// (and its registrant history) intact and visible to the organizer,
+  /// just blocks new registrations and marks it clearly for attendees,
+  /// whereas Delete removes it entirely along with its registrations.
+  /// The database automatically notifies every existing registrant when
+  /// this happens (see notify_event_cancelled() in stage4c_migration.sql).
+  Future<void> _cancelEvent() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        backgroundColor: AppColors.surface,
+        title: const Text('Cancel this event?'),
+        content: const Text(
+          'This blocks new registrations and notifies everyone already '
+              'registered that the event was cancelled. The event and its '
+              'registrant history stay visible to you — this is different '
+              'from deleting it. You can still edit the event afterward, but '
+              'there\'s no "un-cancel" button, so be sure before confirming.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Never mind'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('Cancel event',
+                style: TextStyle(color: AppColors.statusDanger)),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+
+    setState(() => _isSaving = true);
+    try {
+      await Supabase.instance.client
+          .from('events')
+          .update({'status': 'cancelled'}).eq('id', widget.eventId!);
+      if (!mounted) return;
+      context.read<DataRefreshProvider>().bump();
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Event cancelled. Registrants have been notified.')),
+      );
+      Navigator.of(context).pop(true);
+    } catch (e) {
+      setState(() {
+        _isSaving = false;
+        _error = 'Could not cancel event. Please try again.';
+      });
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     if (_isLoadingExisting) {
@@ -521,6 +574,22 @@ class _CreateEditEventScreenState extends State<CreateEditEventScreen> {
                       strokeWidth: 2, color: Colors.white),
                 )
                     : const Text('Save changes'),
+              ),
+            ],
+            // Cancel event — available while editing any event that isn't
+            // already cancelled (draft or published). Kept visually
+            // separate (a plain text link, not a button) so it doesn't
+            // compete with Save/Publish for attention, but it's still
+            // clearly reachable — this was previously missing entirely,
+            // there was no way to cancel an event, only delete it.
+            if (widget.isEditing && _currentStatus != 'cancelled') ...[
+              const SizedBox(height: 20),
+              Center(
+                child: TextButton(
+                  onPressed: _isSaving ? null : _cancelEvent,
+                  child: const Text('Cancel event',
+                      style: TextStyle(color: AppColors.statusDanger)),
+                ),
               ),
             ],
           ],

@@ -75,7 +75,7 @@ class _ActivityScreenState extends State<ActivityScreen>
     setState(() => _isLoading = true);
     try {
       final attendingFuture = RegistrationService.instance
-          .fetchAttendingSummaries(userId, upcomingOnly: true);
+          .fetchAttendingSummaries(userId, upcomingOnly: false);
       final organizingFuture = _eventService.fetchOrganizedEvents(userId);
 
       final attending = await attendingFuture;
@@ -144,46 +144,104 @@ class _ActivityScreenState extends State<ActivityScreen>
   }
 }
 
-class _AttendingTab extends StatelessWidget {
+class _AttendingTab extends StatefulWidget {
   final List<AttendingEventSummary> summaries;
   final Future<void> Function() onRefresh;
 
   const _AttendingTab({required this.summaries, required this.onRefresh});
 
   @override
+  State<_AttendingTab> createState() => _AttendingTabState();
+}
+
+class _AttendingTabState extends State<_AttendingTab> {
+  bool _showPast = false;
+
+  @override
   Widget build(BuildContext context) {
-    if (summaries.isEmpty) {
-      return RefreshIndicator(
-        onRefresh: onRefresh,
-        child: ListView(
-          children: const [
-            SizedBox(height: 100),
-            Center(
-              child: Text(
-                "You haven't registered for any upcoming events yet.",
-                style: TextStyle(color: AppColors.textSecondary),
-              ),
-            ),
-          ],
-        ),
-      );
+    final now = DateTime.now();
+    final filtered = widget.summaries
+        .where((s) => _showPast
+        ? s.event.startDate.isBefore(now)
+        : !s.event.startDate.isBefore(now))
+        .toList();
+    // Most recent first for Past, soonest first for Upcoming.
+    if (_showPast) {
+      filtered.sort((a, b) => b.event.startDate.compareTo(a.event.startDate));
     }
-    return RefreshIndicator(
-      onRefresh: onRefresh,
-      child: ListView(
-        padding: const EdgeInsets.all(20),
-        children: summaries
-            .map((s) => EventCard(
-          event: s.event,
-          trailingBadge:
-          s.ticketCount > 1 ? '${s.ticketCount} TICKETS' : null,
-          onTap: () => Navigator.of(context).push(
-            MaterialPageRoute(
-              builder: (_) => EventDetailsScreen(eventId: s.event.id),
+
+    return Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
+          child: Row(
+            children: [
+              _toggleChip('Upcoming', selected: !_showPast,
+                  onTap: () => setState(() => _showPast = false)),
+              const SizedBox(width: 8),
+              _toggleChip('Past', selected: _showPast,
+                  onTap: () => setState(() => _showPast = true)),
+            ],
+          ),
+        ),
+        Expanded(
+          child: filtered.isEmpty
+              ? RefreshIndicator(
+            onRefresh: widget.onRefresh,
+            child: ListView(
+              children: [
+                const SizedBox(height: 80),
+                Center(
+                  child: Text(
+                    _showPast
+                        ? "No past events yet."
+                        : "You haven't registered for any upcoming events yet.",
+                    style: const TextStyle(color: AppColors.textSecondary),
+                  ),
+                ),
+              ],
+            ),
+          )
+              : RefreshIndicator(
+            onRefresh: widget.onRefresh,
+            child: ListView(
+              padding: const EdgeInsets.fromLTRB(20, 4, 20, 20),
+              children: filtered
+                  .map((s) => EventCard(
+                event: s.event,
+                trailingBadge: s.ticketCount > 1
+                    ? '${s.ticketCount} TICKETS'
+                    : null,
+                onTap: () => Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) =>
+                        EventDetailsScreen(eventId: s.event.id),
+                  ),
+                ),
+              ))
+                  .toList(),
             ),
           ),
-        ))
-            .toList(),
+        ),
+      ],
+    );
+  }
+
+  Widget _toggleChip(String label,
+      {required bool selected, required VoidCallback onTap}) {
+    return ChoiceChip(
+      label: Text(label),
+      selected: selected,
+      onSelected: (_) => onTap(),
+      selectedColor: AppColors.accent,
+      backgroundColor: AppColors.surface,
+      labelStyle: TextStyle(
+        color: selected ? Colors.white : AppColors.textPrimary,
+        fontWeight: FontWeight.w600,
+      ),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(20),
+        side: BorderSide.none,
       ),
     );
   }

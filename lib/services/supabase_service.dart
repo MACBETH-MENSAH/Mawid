@@ -63,6 +63,7 @@ class SupabaseService {
     String? avatarUrl,
     bool? notifyRegistration,
     bool? notifyCheckin,
+    bool? notifyReminders,
   }) async {
     final user = currentUser;
     if (user == null) throw Exception('Not logged in');
@@ -73,6 +74,7 @@ class SupabaseService {
       if (avatarUrl != null) 'avatar_url': avatarUrl,
       if (notifyRegistration != null) 'notify_registration': notifyRegistration,
       if (notifyCheckin != null) 'notify_checkin': notifyCheckin,
+      if (notifyReminders != null) 'notify_reminders': notifyReminders,
     }).eq('id', user.id);
   }
 

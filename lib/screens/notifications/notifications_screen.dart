@@ -3,6 +3,7 @@ import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import '../../models/app_notification.dart';
 import '../../providers/auth_provider.dart';
+import '../../providers/notifications_provider.dart';
 import '../../services/notification_service.dart';
 import '../../theme/app_colors.dart';
 
@@ -37,6 +38,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
       // screen and seen the list — matches the "unread until opened"
       // pattern from the Stitch design's highlighted unread rows.
       await NotificationService.instance.markAllRead(userId);
+      if (mounted) context.read<NotificationsProvider>().clearUnread();
     } catch (e) {
       setState(() => _isLoading = false);
     }

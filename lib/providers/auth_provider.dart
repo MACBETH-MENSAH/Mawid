@@ -56,6 +56,7 @@ class AuthProvider with ChangeNotifier {
     String? avatarUrl,
     bool? notifyRegistration,
     bool? notifyCheckin,
+    bool? notifyReminders,
   }) async {
     await _service.updateProfile(
       fullName: fullName,
@@ -63,6 +64,7 @@ class AuthProvider with ChangeNotifier {
       avatarUrl: avatarUrl,
       notifyRegistration: notifyRegistration,
       notifyCheckin: notifyCheckin,
+      notifyReminders: notifyReminders,
     );
     await _loadProfile(); // pick up the change immediately, app-wide
   }

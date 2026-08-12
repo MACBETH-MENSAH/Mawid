@@ -123,6 +123,7 @@ class _EventDetailsScreenState extends State<EventDetailsScreen> {
     final currentUserId = context.watch<AuthProvider>().profile?.id;
     final isOrganizer = currentUserId != null && event.isOrganizedBy(currentUserId);
     final isPast = event.startDate.isBefore(DateTime.now());
+    final isCancelled = event.status == 'cancelled';
     final dateFormat = DateFormat('EEEE, MMM d, yyyy');
 
     final totalQuantity = _quantities.values.fold<int>(0, (a, b) => a + b);
@@ -267,7 +268,32 @@ class _EventDetailsScreenState extends State<EventDetailsScreen> {
                   const SizedBox(height: 24),
                 ],
 
-                if (!isOrganizer && isPast) ...[
+                if (!isOrganizer && isCancelled) ...[
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(14),
+                    decoration: BoxDecoration(
+                      color: AppColors.statusDanger.withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                          color: AppColors.statusDanger.withValues(alpha: 0.4)),
+                    ),
+                    child: const Row(
+                      children: [
+                        Icon(Icons.cancel_outlined,
+                            color: AppColors.statusDanger, size: 20),
+                        SizedBox(width: 10),
+                        Expanded(
+                          child: Text(
+                            'This event has been cancelled by the organizer.',
+                            style: TextStyle(color: AppColors.statusDanger),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+                ] else if (!isOrganizer && isPast) ...[
                   Container(
                     width: double.infinity,
                     padding: const EdgeInsets.all(14),
@@ -354,7 +380,7 @@ class _EventDetailsScreenState extends State<EventDetailsScreen> {
             ],
           )
               : ElevatedButton(
-            onPressed: (isPast || totalQuantity == 0)
+            onPressed: (isCancelled || isPast || totalQuantity == 0)
                 ? null
                 : () {
               final selections = _ticketTypes
@@ -374,7 +400,9 @@ class _EventDetailsScreenState extends State<EventDetailsScreen> {
               );
             },
             child: Text(
-              isPast
+              isCancelled
+                  ? 'Event cancelled'
+                  : (isPast
                   ? 'Registration closed'
                   : (_ticketTypes.isEmpty
                   ? 'Registration not open yet'
@@ -382,7 +410,7 @@ class _EventDetailsScreenState extends State<EventDetailsScreen> {
                   ? 'Select tickets'
                   : (totalPrice == 0
                   ? 'Register $totalQuantity ticket${totalQuantity > 1 ? 's' : ''} — Free'
-                  : 'Get $totalQuantity ticket${totalQuantity > 1 ? 's' : ''} — \$${totalPrice.toStringAsFixed(0)}'))),
+                  : 'Get $totalQuantity ticket${totalQuantity > 1 ? 's' : ''} — \$${totalPrice.toStringAsFixed(0)}')))),
             ),
           ),
         ),

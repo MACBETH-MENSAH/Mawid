@@ -15,7 +15,7 @@ class _NotificationPreferencesScreenState
     extends State<NotificationPreferencesScreen> {
   bool _isSaving = false;
 
-  Future<void> _toggle({bool? registration, bool? checkin}) async {
+  Future<void> _toggle({bool? registration, bool? checkin, bool? reminders}) async {
     final auth = context.read<AuthProvider>();
     final current = auth.profile;
     if (current == null) return;
@@ -26,6 +26,7 @@ class _NotificationPreferencesScreenState
         fullName: current.fullName,
         notifyRegistration: registration,
         notifyCheckin: checkin,
+        notifyReminders: reminders,
       );
     } finally {
       if (mounted) setState(() => _isSaving = false);
@@ -73,6 +74,18 @@ class _NotificationPreferencesScreenState
                   value: profile.notifyCheckin,
                   onChanged:
                   _isSaving ? null : (v) => _toggle(checkin: v),
+                ),
+                const Divider(height: 1),
+                SwitchListTile(
+                  title: const Text('Event reminders'),
+                  subtitle: const Text(
+                    'Remind me before events I\'m registered for start',
+                    style: TextStyle(fontSize: 12),
+                  ),
+                  activeThumbColor: AppColors.accent,
+                  value: profile.notifyReminders,
+                  onChanged:
+                  _isSaving ? null : (v) => _toggle(reminders: v),
                 ),
               ],
             ),
