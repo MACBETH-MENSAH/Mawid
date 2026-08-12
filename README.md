@@ -85,3 +85,5 @@ Built for a Software Engineering course project. UI design referenced
 against the Vaurse app for layout/interaction patterns (see project
 documentation for details); MAWID's brand identity, color system, and all
 functionality are original to this project.
+
+--Developed by: Macbeth
