@@ -1,40 +1,85 @@
-# MAWID — Stage 1 (Foundation + Auth)
+# MAWID — Full Setup Guide
 
-## What's in this stage
-- Theme system (`lib/theme/`) — the dark navy/blue palette, one place to change it
-- Models (`lib/models/`) — Profile, EventModel, TicketType, Registration — field
-  names map 1:1 to the columns in `eventhive_schema.sql`
-- Supabase wiring (`lib/services/supabase_service.dart`, `lib/providers/auth_provider.dart`)
-- Login + Sign Up screens, fully working against Supabase Auth
-- `MawidLogo` widget — the one place the brand mark is referenced from
-- `main.dart` — routes to Login when logged out, to a placeholder Home
-  screen when logged in (real Home comes in the next stage)
+One consolidated reference, replacing the separate STAGE1–4 notes files
+from earlier in the build. Follow this top to bottom for a fresh setup
+(new machine, new Supabase project, or onboarding a teammate).
 
-## How to run this
-1. If you haven't already: `flutter create mawid` in your own environment,
-   then replace the generated `lib/`, `pubspec.yaml`, and `assets/` with
-   the ones in this zip (or merge them in if you've already started).
-2. Run the Supabase schema (`eventhive_schema.sql`) in your Supabase
-   project's SQL Editor if you haven't yet.
-3. Open `lib/config/supabase_config.dart` and fill in your project's
-   URL and anon key from Supabase dashboard -> Project Settings -> API.
-4. `flutter pub get`
-5. `flutter run`
+## 1. Supabase project
+1. Create a project at supabase.com (region: closest to you — Europe for
+   Ghana-based users).
+2. On creation, keep these enabled: **Enable Data API**, **Enable
+   automatic RLS**. "Automatically expose new tables" can stay on too.
 
-You should be able to sign up, get a confirmation-email prompt (Supabase's
-default), log in, and see a placeholder screen showing your name with a
-log-out button. That confirms Auth + the `profiles` trigger are both wired
-correctly before we build anything on top of them.
+## 2. Run the SQL migrations, in this exact order
+All four live in the project root. Supabase dashboard → **SQL Editor** →
+New query → paste → Run, one file at a time:
 
-## Note on email confirmation
-Supabase requires email confirmation by default, which will slow down
-testing during your 2-day window. To turn it off for faster local testing:
-Supabase dashboard -> Authentication -> Providers -> Email -> toggle off
-"Confirm email". Turn it back on before anything resembling a real
-deployment — just don't forget you turned it off, since "we deliberately
-disabled email confirmation for local testing" is a completely reasonable
-line for your report, "we forgot it was off" is not.
+1. `eventhive_schema.sql` — core tables (profiles, events, ticket_types,
+   registrations), RLS policies, oversell-prevention trigger.
+2. `stage4_migration.sql` — notifications table + registration/check-in
+   notification triggers + missing profiles delete policy.
+3. `stage4b_migration.sql` — avatar storage bucket + policies,
+   notification preference columns, triggers updated to respect them.
+4. `stage4c_migration.sql` — Realtime enabled on notifications, scheduled
+   event reminders (`pg_cron`), cancel-event notification trigger.
+    - If `create extension if not exists pg_cron;` errors on permissions:
+      Supabase dashboard → Database → Extensions → search "pg_cron" →
+      enable manually, then re-run just the `select cron.schedule(...)`
+      block from that file.
 
-## Next stage
-Home screen, Events browse/search, Filter modal, bottom nav (HomeShell)
-tying Home/Events/Activity/Profile together. Say the word when ready.
+## 3. Deploy the delete-account Edge Function
+Supabase dashboard → **Edge Functions** → Create a new function named
+exactly `delete-account` → replace all the starter code with the contents
+of `supabase/functions/delete-account/index.ts` → Deploy. No environment
+variables to set manually — Supabase injects `SUPABASE_URL`,
+`SUPABASE_ANON_KEY`, and `SUPABASE_SERVICE_ROLE_KEY` automatically.
+
+## 4. Configure the Flutter app
+1. Supabase dashboard → Project Settings → API → copy the **Project
+   URL** and **anon public** key (never the service_role key).
+2. Paste both into `lib/config/supabase_config.dart`.
+3. `flutter pub get`
+
+## 5. Camera permission (needed for the check-in QR scanner)
+**Android** — `android/app/src/main/AndroidManifest.xml`, inside
+`<manifest>`, above `<application>`:
+```xml
+<uses-permission android:name="android.permission.CAMERA" />
+```
+
+**iOS** — `ios/Runner/Info.plist`, inside the outer `<dict>`:
+```xml
+<key>NSCameraUsageDescription</key>
+<string>MAWID needs camera access to scan attendee ticket QR codes.</string>
+```
+
+## 6. Run it
+```
+flutter run
+```
+or for faster iteration during development:
+```
+flutter run -d chrome
+```
+
+## Testing tips
+- Camera QR scanning is unreliable on emulators — use the **Search
+  manually** button on the scanner screen, or the **Check in** button per
+  row on the Event Dashboard's registrant list, to test check-in without
+  a working camera feed.
+- To trigger a reminder notification immediately instead of waiting for
+  the 30-minute cron job: SQL Editor → `select public.send_event_reminders();`
+- Turn off email confirmation for faster signup testing: Supabase
+  dashboard → Authentication → Providers → Email → toggle off "Confirm
+  email." Remember to weigh whether to turn it back on before any real
+  deployment/demo where you want to show it's a considered decision, not
+  an oversight.
+
+## Known, disclosed limitations (fine to mention as-is in your report)
+- Buying multiple tickets in one checkout isn't wrapped in a single
+  atomic database transaction — see the comment in
+  `booking_confirmation_screen.dart` for the reasoning and what a
+  production version would do differently.
+- Event cover images are set via a pasted URL, not a direct device photo
+  upload (unlike avatars, which do upload directly to Storage) — see the
+  next section if you want this changed.
