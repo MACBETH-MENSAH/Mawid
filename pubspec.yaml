@@ -31,6 +31,7 @@ dev_dependencies:
     sdk: flutter
   flutter_lints: ^4.0.0
   flutter_native_splash: ^2.4.1
+  flutter_launcher_icons: ^0.13.1
 
 flutter:
   uses-material-design: true
@@ -44,6 +45,13 @@ flutter:
 # while the OS is still launching the app, before Flutter's engine has
 # even started drawing anything.
 #
+# web: false — deliberately not generating a web splash here. Web
+# doesn't have an equivalent "native pre-boot" moment the way
+# Android/iOS do, and generating one risks fighting with the timed
+# 2.5s Dart-side splash in main.dart, which is what actually controls
+# the branded splash experience on web. One splash mechanism per
+# platform, not two competing ones.
+#
 # To generate/update it after changing this config or the image, run:
 #   flutter pub get
 #   dart run flutter_native_splash:create
@@ -52,6 +60,26 @@ flutter:
 flutter_native_splash:
   color: "#05070D"
   image: assets/images/mawid_mark.png
+  web: false
   android_12:
     color: "#05070D"
     image: assets/images/mawid_mark.png
+
+# Config for flutter_launcher_icons — generates the actual app icon
+# (home screen icon on Android/iOS, browser tab favicon + PWA icons on
+# web) from the same real logo PNG, not a separate hand-made asset. One
+# source image, every platform's icon derived from it.
+#
+# To generate/update after changing this config or the image, run:
+#   flutter pub get
+#   dart run flutter_launcher_icons
+flutter_launcher_icons:
+  android: true
+  ios: true
+  image_path: "assets/images/mawid_mark.png"
+  min_sdk_android: 21
+  web:
+    generate: true
+    image_path: "assets/images/mawid_mark.png"
+    background_color: "#05070D"
+    theme_color: "#05070D"
